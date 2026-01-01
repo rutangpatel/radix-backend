@@ -1,11 +1,15 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException
 from app.pymongo_database import get_database
+from pymongo import IndexModel, ASCENDING
 from app.schemas import UserModel
 from datetime import datetime, timezone
+from app.profile_photo import imagekit
 
 radix = get_database()
 user_info = radix["user_info"]
-user_info.create_index([("id",1), ("mob_no",1)], unique = True)
+index1 = IndexModel([("id", ASCENDING)], unique = True)
+index2 = IndexModel([("mob_no", ASCENDING)], unique = True)
+user_info.create_indexes([index1, index2])
 
 router = APIRouter()
 
@@ -15,7 +19,7 @@ def user():
 
 @router.post("/user/creation")
 async def user_create(info: UserModel, name_in_id: bool = False):
-    data = user_info.find({"mob_no":info.mob_no})
+    data = user_info.find_one({"mob_no":info.mob_no})
     if data is not None:
         raise HTTPException(
             status_code = 409,
@@ -32,7 +36,7 @@ async def user_create(info: UserModel, name_in_id: bool = False):
             else:
                 info.id = info.mob_no + "@radix"
             
-            user_info.insert_one(info.model_dump)
+            user_info.insert_one(info.model_dump())
 
             return {"status": "You are now part of Radix",
                     "id": f"{info.id}"}
@@ -44,6 +48,27 @@ async def user_create(info: UserModel, name_in_id: bool = False):
             )
 
     
+@router.put("/user/profile_photo")
+async def upload_photo(user_id:str, image : UploadFile = File(...)):
+        try:
+            image_data = await image.read()
+            data = user_info.find_one({"id":user_id})
+            if data:
+                name = data["name"]
+            response = imagekit.files.upload(
+                file = image_data,
+                file_name = name+".jpg"
+            )
+            user_info.update_one(
+                {"id":data["id"]},
+                {"$set":{"profile_photo":response.url}}
+            )
+            return {"status":"Your profile photo is successfully uploaded"}
+        except:
+            raise HTTPException(
+                status_code = 404,
+                detail = f"Their was something wrong"
+            )
         
 @router.put("/user/update")
 def updation(user_id: str, to_mob_no: bool = False, to_name: bool = True):
@@ -71,3 +96,13 @@ def updation(user_id: str, to_mob_no: bool = False, to_name: bool = True):
             detail=f"We were not able to change your id please try later"
         )
 
+@router.delete("/user/delete")
+async def deletion(user_id:str):
+    try:
+        user_info.delete_one({"id":user_id})
+        return {"status":"Your id was deleted successfully"}
+    except:
+        raise HTTPException(
+            status_code = 404,
+            detail = "Try after sometime"
+        )

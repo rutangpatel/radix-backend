@@ -15,3 +15,4 @@ class UserModel(BaseModel):
     bank: str
     time_of_creation: datetime | None = None
     id: str | None = None
+    profile_photo : str | None = None
