@@ -4,6 +4,7 @@ from pymongo import IndexModel, ASCENDING
 from app.schemas import UserModel
 from datetime import datetime, timezone
 from app.profile_photo import imagekit
+import secrets
 
 radix = get_database()
 user_info = radix["user_info"]
@@ -16,6 +17,24 @@ router = APIRouter()
 @router.get("/user")
 def user():
     return {"data": "Radix User API's"}
+
+@router.get("/user/balance")
+async def get_balance(user_id: str):
+    try:
+        data = user_info.find_one({"id":user_id})
+        if not data:
+            raise HTTPException(
+                status_code = 404,
+                detail = "You are not registered with us"
+            )
+        current_amount = data["amount"]
+
+        return {"amount":current_amount}
+    except:
+        raise HTTPException(
+            status_code = 404,
+            detail = "Their was something wrong try again later"
+        )
 
 @router.post("/user/creation")
 async def user_create(info: UserModel, name_in_id: bool = False):
@@ -36,10 +55,13 @@ async def user_create(info: UserModel, name_in_id: bool = False):
             else:
                 info.id = info.mob_no + "@radix"
             
+            info.amount = secrets.randbelow(50000) + 50000
+
             user_info.insert_one(info.model_dump())
 
             return {"status": "You are now part of Radix",
-                    "id": f"{info.id}"}
+                    "id": f"{info.id}",
+                    "amount": f"{info.amount}"}
 
         except Exception as e:
             raise HTTPException(
@@ -105,4 +127,26 @@ async def deletion(user_id:str):
         raise HTTPException(
             status_code = 404,
             detail = "Try after sometime"
+        )
+    
+
+async def amount_change(user_id: str, amount:float, minus: bool):
+    try:
+        data = user_info.find_one({"id":user_id})
+        if minus:
+            remaining_balance = data["amount"] - amount
+            user_info.update_one(
+                {"id": user_id},
+                {"$set" : {"amount": remaining_balance}}
+            )
+        else:
+            remaining_balance = data["amount"] + amount
+            user_info.update_one(
+                {"id": user_id},
+                {"$set" : {"amount": remaining_balance}}
+            )
+    except:
+        raise HTTPException(
+            status_code = 404,
+            detail = "Their was some error"
         )

@@ -3,6 +3,8 @@ from app.schemas import TransactionModel
 from datetime import datetime, timedelta, timezone
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
+from app.users import get_balance, amount_change
+import uuid
 
 router = APIRouter()
 
@@ -85,9 +87,19 @@ async def history(user_id: str, start_date : str | None = None, end_date : str |
 async def paying(info: TransactionModel):
     try:
         info.time = datetime.now(timezone.utc)
-        transactions.insert_one(info.model_dump())   
-        return {"status": f"Payment Successful to {info.to_id} for {info.amount}"}
-    
+        info.transaction_id = uuid.uuid4().hex
+
+        from_balance = (await get_balance(user_id = info.from_id))["amount"] 
+        if from_balance >= info.amount:
+            await amount_change(user_id = info.from_id, amount = info.amount, minus = True)
+            await amount_change(user_id = info.to_id, amount = info.amount, minus = False)  
+            transactions.insert_one(info.model_dump())
+            return {"status": f"Payment Successful to {info.to_id} for {info.amount}"}
+        else:
+            raise HTTPException(
+                status_code = 404,
+                detail = "You do not have enough balance"
+            )
     
     except Exception as e:
         raise HTTPException(
