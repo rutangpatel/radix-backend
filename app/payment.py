@@ -10,8 +10,8 @@ router = APIRouter()
 
 radix = get_database()
 transactions = radix["transactions"]
-index1 = IndexModel([("id",ASCENDING)], unique = True)
-index2 = IndexModel([("mob_no",ASCENDING)], unique = True)
+index1 = IndexModel([("id")])
+index2 = IndexModel([("transaction_id", ASCENDING)], unique = True)
 category_index = transactions.create_indexes([index1, index2])
 
 
