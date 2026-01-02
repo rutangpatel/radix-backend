@@ -93,16 +93,17 @@ async def paying(info: TransactionModel):
             
             info.time = datetime.now(timezone.utc)
             info.transaction_id = uuid.uuid4().hex
-
             balance_data = get_balance(user_id = info.from_id)
-            from_balance = balance_data["amount"]
+            from_balance = balance_data["amount"]      
+
             if from_balance >= info.amount:
                 check_1 = await amount_change(user_id = info.from_id, amount = info.amount, minus = True)
                 if check_1:
                     check_2 = await amount_change(user_id = info.to_id, amount = info.amount, minus = False)  
                     if check_2:
                         transactions.insert_one(info.model_dump())
-                        return {"status": f"Payment Successful to {info.to_id} for {info.amount}"}
+                        return {"status": f"Payment Successful to {info.to_id} for {info.amount}",
+                                "reamining_balance": from_balance - info.amount}
                     else:
                         raise HTTPException(
                             status_code = 500,
