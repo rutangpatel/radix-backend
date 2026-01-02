@@ -19,7 +19,7 @@ def user():
     return {"data": "Radix User API's"}
 
 @router.get("/user/balance")
-async def get_balance(user_id: str):
+def get_balance(user_id: str):
     try:
         data = user_info.find_one({"id":user_id})
         if not data:
@@ -131,22 +131,24 @@ async def deletion(user_id:str):
     
 
 async def amount_change(user_id: str, amount:float, minus: bool):
-    try:
-        data = user_info.find_one({"id":user_id})
-        if minus:
-            remaining_balance = data["amount"] - amount
-            user_info.update_one(
-                {"id": user_id},
-                {"$set" : {"amount": remaining_balance}}
-            )
-        else:
-            remaining_balance = data["amount"] + amount
-            user_info.update_one(
-                {"id": user_id},
-                {"$set" : {"amount": remaining_balance}}
-            )
-    except:
-        raise HTTPException(
-            status_code = 404,
-            detail = "Their was some error"
+    data = user_info.find_one({"id":user_id})
+    if minus:
+        remaining_balance = data["amount"] - amount
+        user_info.update_one(
+            {"id": user_id},
+            {"$set" : {"amount": remaining_balance}}
         )
+    else:
+        remaining_balance = data["amount"] + amount
+        user_info.update_one(
+            {"id": user_id},
+            {"$set" : {"amount": remaining_balance}}
+        )
+    return True
+    
+def check_user(user_id: str):
+    data = user_info.find_one({"id":user_id})
+    if data:
+        return True
+    else:
+        return False
