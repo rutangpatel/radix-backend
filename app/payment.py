@@ -86,16 +86,25 @@ async def history(user_id: str, start_date : str | None = None, end_date : str |
 @router.post("/transaction/payment")
 async def paying(info: TransactionModel):
     try:
+<<<<<<< HEAD
         to_id_exist = check_user(user_id = info.to_id)
         from_id_exist = check_user(user_id = info.from_id)
+=======
+        to_id_exist = await check_user(user_id = info.to_id)
+        from_id_exist = await check_user(user_id = info.from_id)
+>>>>>>> 8d031aafcd3c08317754ac936ae1455fcef884f3
         
         if to_id_exist and from_id_exist:
             
             info.time = datetime.now(timezone.utc)
             info.transaction_id = uuid.uuid4().hex
 
+<<<<<<< HEAD
             balance_data = get_balance(user_id = info.from_id)
             from_balance = balance_data["amount"]
+=======
+            from_balance = (await get_balance(user_id = info.from_id))["amount"] 
+>>>>>>> 8d031aafcd3c08317754ac936ae1455fcef884f3
             if from_balance >= info.amount:
                 check_1 = await amount_change(user_id = info.from_id, amount = info.amount, minus = True)
                 if check_1:
