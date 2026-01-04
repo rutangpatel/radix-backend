@@ -1,27 +1,32 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
 from app.schemas import UserModel
+from app.auth import get_current_user
+from passlib.context import CryptContext
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from jose import jwt, JWTError
 from datetime import datetime, timezone
 from app.profile_photo import imagekit
 import secrets
 
 radix = get_database()
 user_info = radix["user_info"]
-index1 = IndexModel([("id", ASCENDING)], unique = True)
+index1 = IndexModel([("user_id", ASCENDING)], unique = True)
 index2 = IndexModel([("mob_no", ASCENDING)], unique = True)
 user_info.create_indexes([index1, index2])
 
 router = APIRouter()
+bcrypt_context = CryptContext(schemes = ["bcrypt"], deprecated = "auto")
 
-@router.get("/user")
+@router.get("/")
 def user():
     return {"data": "Radix User API's"}
 
-@router.get("/user/balance")
+@router.get("/balance")
 def get_balance(user_id: str):
     try:
-        data = user_info.find_one({"id":user_id})
+        data = user_info.find_one({"user_id":user_id})
         if not data:
             raise HTTPException(
                 status_code = 404,
@@ -36,7 +41,16 @@ def get_balance(user_id: str):
             detail = "Their was something wrong try again later"
         )
 
-@router.post("/user/creation")
+@router.get("/authenticated")
+async def user(user: dict = Depends(get_current_user)):
+    if user is None:
+        raise HTTPException(
+            status_code = 401,
+            detail = "Not Authenticated"
+        )
+    return {"user":user}
+
+@router.post("/signup")
 async def user_create(info: UserModel, name_in_id: bool = False):
     data = user_info.find_one({"mob_no":info.mob_no})
     if data is not None:
@@ -50,17 +64,18 @@ async def user_create(info: UserModel, name_in_id: bool = False):
 
             if name_in_id:
                 initials = info.name.lower().replace(" ","")
-                info.id = initials + "@radix"
+                info.user_id = initials + "@radix"
             
             else:
-                info.id = info.mob_no + "@radix"
+                info.user_id = info.mob_no + "@radix"
             
             info.amount = secrets.randbelow(50000) + 50000
-
+            hashed_password = bcrypt_context.hash(info.password)
+            info.password = hashed_password
             user_info.insert_one(info.model_dump())
 
             return {"status": "You are now part of Radix",
-                    "id": f"{info.id}",
+                    "user_id": f"{info.user_id}",
                     "amount": f"{info.amount}"}
 
         except Exception as e:
@@ -70,11 +85,11 @@ async def user_create(info: UserModel, name_in_id: bool = False):
             )
 
     
-@router.put("/user/profile_photo")
+@router.put("/profile_photo")
 async def upload_photo(user_id:str, image : UploadFile = File(...)):
         try:
             image_data = await image.read()
-            data = user_info.find_one({"id":user_id})
+            data = user_info.find_one({"user_id":user_id})
             if data:
                 name = data["name"]
             response = imagekit.files.upload(
@@ -82,7 +97,7 @@ async def upload_photo(user_id:str, image : UploadFile = File(...)):
                 file_name = name+".jpg"
             )
             user_info.update_one(
-                {"id":data["id"]},
+                {"user_id":data["user_id"]},
                 {"$set":{"profile_photo":response.url}}
             )
             return {"status":"Your profile photo is successfully uploaded"}
@@ -92,10 +107,10 @@ async def upload_photo(user_id:str, image : UploadFile = File(...)):
                 detail = f"Their was something wrong"
             )
         
-@router.put("/user/update")
+@router.put("/update")
 def updation(user_id: str, to_mob_no: bool = False, to_name: bool = True):
     try:
-        data = user_info.find_one({"id":user_id})
+        data = user_info.find_one({"user_id":user_id})
         if not data:
             return {"status":"Data not found"}
         new_id = None
@@ -107,8 +122,8 @@ def updation(user_id: str, to_mob_no: bool = False, to_name: bool = True):
         
 
         user_info.update_one(
-            {"id":user_id},
-            {"$set":{"id":new_id}}
+            {"user_id":user_id},
+            {"$set":{"user_id":new_id}}
         )
         return {"status":f"Your id is successfully changed to {new_id}"}
     
@@ -118,10 +133,10 @@ def updation(user_id: str, to_mob_no: bool = False, to_name: bool = True):
             detail=f"We were not able to change your id please try later"
         )
 
-@router.delete("/user/delete")
+@router.delete("/delete")
 async def deletion(user_id:str):
     try:
-        user_info.delete_one({"id":user_id})
+        user_info.delete_one({"user_id":user_id})
         return {"status":"Your id was deleted successfully"}
     except:
         raise HTTPException(
@@ -131,23 +146,23 @@ async def deletion(user_id:str):
     
 
 async def amount_change(user_id: str, amount:float, minus: bool):
-    data = user_info.find_one({"id":user_id})
+    data = user_info.find_one({"user_id":user_id})
     if minus:
         remaining_balance = data["amount"] - amount
         user_info.update_one(
-            {"id": user_id},
+            {"user_id": user_id},
             {"$set" : {"amount": remaining_balance}}
         )
     else:
         remaining_balance = data["amount"] + amount
         user_info.update_one(
-            {"id": user_id},
+            {"user_id": user_id},
             {"$set" : {"amount": remaining_balance}}
         )
     return True
     
 def check_user(user_id: str):
-    data = user_info.find_one({"id":user_id})
+    data = user_info.find_one({"user_id":user_id})
     if data:
         return True
     else:

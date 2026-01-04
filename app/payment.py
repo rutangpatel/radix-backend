@@ -15,11 +15,11 @@ index2 = IndexModel([("transaction_id", ASCENDING)], unique = True)
 category_index = transactions.create_indexes([index1, index2])
 
 
-@router.get("/transaction")
+@router.get("/")
 def home():
     return {"data":"Radix Transaction API's"}
 
-@router.get("/transaction/history")
+@router.get("/history")
 async def history(user_id: str, start_date : str | None = None, end_date : str | None = None):
     now = datetime.now(timezone.utc)
     if start_date is None:
@@ -83,7 +83,7 @@ async def history(user_id: str, start_date : str | None = None, end_date : str |
             })
     return data
 
-@router.post("/transaction/payment")
+@router.post("/payment")
 async def paying(info: TransactionModel):
     try:
         to_id_exist = check_user(user_id = info.to_id)
