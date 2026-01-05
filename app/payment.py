@@ -1,18 +1,20 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas import TransactionModel
+from fastapi.responses import RedirectResponse
+from app.schemas import TransactionModel, TransactionModelMobNo
 from datetime import datetime, timedelta, timezone
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
-from app.users import get_balance, amount_change, check_user
+from app.users import get_balance, amount_change, check_user, find_user_mob_no
 import uuid
 
 router = APIRouter()
 
 radix = get_database()
 transactions = radix["transactions"]
-index1 = IndexModel([("id")])
+index1 = IndexModel([("user_id")])
 index2 = IndexModel([("transaction_id", ASCENDING)], unique = True)
-category_index = transactions.create_indexes([index1, index2])
+index3 = IndexModel([("mob_no", ASCENDING)], unique = True)
+category_index = transactions.create_indexes([index1, index2, index3])
 
 
 @router.get("/")
@@ -133,4 +135,23 @@ async def paying(info: TransactionModel):
         raise HTTPException(
             status_code = 500,
             detail = f"Payment failed: {str(e)}"
+        )
+    
+@router.post("/payment_using_mob_no")
+async def paying_mob_no(info:TransactionModelMobNo):
+    try:
+        to_id_mob_no = find_user_mob_no(info.mob_no)
+        model = TransactionModel(
+            from_id = info.from_id,
+            to_id = to_id_mob_no,
+            amount = info.amount,
+            remark = info.remark
+        )
+        return await paying(model)
+    except HTTPException as e:
+        raise e
+    except:
+        raise HTTPException(
+            status_code = 404,
+            detail = "Some Error has occured"
         )

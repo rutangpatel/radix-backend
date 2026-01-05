@@ -167,3 +167,10 @@ def check_user(user_id: str):
         return True
     else:
         return False
+    
+def find_user_mob_no(mob_no: str):
+    data = user_info.find_one({"mob_no": mob_no})
+    if data:
+        return data["user_id"]
+    else:
+        return False

@@ -8,6 +8,12 @@ class TransactionModel(BaseModel):
     amount:float
     time: datetime | None = None
     remark: str | None = None
+
+class TransactionModelMobNo(BaseModel):
+    from_id: str
+    mob_no: str
+    amount: float
+    remark: str | None = None
 class DBUserModel(BaseModel):
     user_id: str
     hashed_password: str
