@@ -13,8 +13,7 @@ radix = get_database()
 transactions = radix["transactions"]
 index1 = IndexModel([("user_id")])
 index2 = IndexModel([("transaction_id", ASCENDING)], unique = True)
-index3 = IndexModel([("mob_no", ASCENDING)], unique = True)
-category_index = transactions.create_indexes([index1, index2, index3])
+category_index = transactions.create_indexes([index1, index2])
 
 
 @router.get("/")
@@ -105,7 +104,8 @@ async def paying(info: TransactionModel):
                     if check_2:
                         transactions.insert_one(info.model_dump())
                         return {"status": f"Payment Successful to {info.to_id} for {info.amount}",
-                                "reamining_balance": from_balance - info.amount}
+                                "reamining_balance": from_balance - info.amount,
+                                "transaction_id": info.transaction_id}
                     else:
                         raise HTTPException(
                             status_code = 500,

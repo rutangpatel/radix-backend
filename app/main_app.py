@@ -5,7 +5,7 @@ from app.auth import router as auth_router
 
 app = FastAPI()
 
-app.include_router(payment_router, prefix = "/payment", tags = ["Payment"])
+app.include_router(payment_router, prefix = "/transaction", tags = ["Payment"])
 app.include_router(users_router, prefix = "/users", tags = ["Users"])
 app.include_router(auth_router, prefix = "/auth", tags = ["Authentication"])
 
