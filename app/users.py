@@ -174,3 +174,15 @@ def find_user_mob_no(mob_no: str):
         return data["user_id"]
     else:
         return False
+    
+def rollback_amount(user_id: str, amount:float):
+    try:
+        data = user_info.find_one({"user_id": user_id})
+        added_balance = data["amount"] + amount
+        user_info.update_one(
+            {"user_id": user_id},
+            {"$set": {"amount": added_balance}}
+        )
+        return True
+    except:
+        return False

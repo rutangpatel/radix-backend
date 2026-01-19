@@ -31,3 +31,9 @@ class UserModel(BaseModel):
     time_of_creation: datetime | None = None
     user_id: str | None = None
     profile_photo : str | None = None
+
+class RollBack(BaseModel):
+    user_id: str
+    amount: float
+    transaction_id: str
+    time: datetime | None = None

@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
-from app.schemas import TransactionModel, TransactionModelMobNo
+from app.schemas import TransactionModel, TransactionModelMobNo, RollBack
 from datetime import datetime, timedelta, timezone
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
 from app.users import get_balance, amount_change, check_user, find_user_mob_no
+from app.rollback import rollbackput
 import uuid
 
 router = APIRouter()
@@ -107,6 +108,13 @@ async def paying(info: TransactionModel):
                                 "reamining_balance": from_balance - info.amount,
                                 "transaction_id": info.transaction_id}
                     else:
+                        model = RollBack(
+                            user_id = info.from_id,
+                            amount = info.amount,
+                            transaction_id = info.transaction_id,
+                            time = info.time
+                        )
+                        rollbackput(model)
                         raise HTTPException(
                             status_code = 500,
                             detail = "Money was deducted but not recieved to the user"
