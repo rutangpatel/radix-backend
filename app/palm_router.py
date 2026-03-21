@@ -85,37 +85,36 @@ async def identify_palm(image: UploadFile = File(...)):
 # ── Pay ─────────────────────────────────────────────────────
 @router.post("/pay")
 async def palm_pay(
-    info: PalmPayment,
-    to_id: str,
+    to_id: str = Form(...),
+    amount: float = Form(...),
+    remark: str = Form(None),   # optional
     image: UploadFile = File(...)
 ):
     try:
-        # Step 1 - identify who is paying
         image_bytes = await image.read()
         query_embedding = get_embedding(image_bytes)
         result = search_palm(query_embedding)
 
         if not result["matched"]:
             raise HTTPException(
-                status_code = 401,
-                detail = f"Palm not recognised. Confidence: {result['confidence']:.2f}"
+                status_code=401,
+                detail=f"Palm not recognised. Confidence: {result['confidence']:.2f}"
             )
 
         from_id = result["user_id"]
 
-        # Step 2 - reuse existing paying() logic as-is
         transaction = TransactionModel(
-            from_id = from_id,
-            to_id = to_id,
-            amount = info.amount,
-            remark = info.remark
+            from_id=from_id,
+            to_id=to_id,
+            amount=amount,
+            remark=remark
         )
         return await paying(transaction)
 
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code = 500, detail = f"Palm payment failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Palm payment failed: {str(e)}")
 
 
 # ── Re-enroll ───────────────────────────────────────────────
