@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
-from app.schemas import TransactionModel, TransactionModelMobNo, RollBack
+from app.schemas import TransactionModel, TransactionModelMobNo, RollBack, PinPayment
 from datetime import datetime, timedelta, timezone
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
-from app.users import get_balance, amount_change, check_user, find_user_mob_no
+from app.users import get_balance, amount_change, check_user, find_user_mob_no, verify_pin
 from app.rollback import rollbackput
 import uuid
 
@@ -84,8 +84,54 @@ async def history(user_id: str, start_date : str | None = None, end_date : str |
                 "remark": remark
             })
     return data
-
+    
 @router.post("/payment")
+async def paying_pin(info: PinPayment):
+    try:
+        # Step 1 — verify PIN before anything else
+        pin_valid = verify_pin(user_id=info.from_id, pin=info.pin)
+        if not pin_valid:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid PIN"
+            )
+
+        # Step 2 — reuse existing paying() logic
+        transaction = TransactionModel(
+            from_id=info.from_id,
+            to_id=info.to_id,
+            amount=info.amount,
+            remark=info.remark
+        )
+        return await paying(transaction)
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"PIN payment failed: {str(e)}"
+        )
+
+@router.post("/payment_using_mob_no")
+async def paying_mob_no(info:TransactionModelMobNo):
+    try:
+        to_id_mob_no = find_user_mob_no(info.mob_no)
+        model = TransactionModel(
+            from_id = info.from_id,
+            to_id = to_id_mob_no,
+            amount = info.amount,
+            remark = info.remark
+        )
+        return await paying(model)
+    except HTTPException as e:
+        raise e
+    except:
+        raise HTTPException(
+            status_code = 404,
+            detail = "Some Error has occured"
+        )
+    
 async def paying(info: TransactionModel):
     try:
         to_id_exist = check_user(user_id = info.to_id)
@@ -143,23 +189,4 @@ async def paying(info: TransactionModel):
         raise HTTPException(
             status_code = 500,
             detail = f"Payment failed: {str(e)}"
-        )
-    
-@router.post("/payment_using_mob_no")
-async def paying_mob_no(info:TransactionModelMobNo):
-    try:
-        to_id_mob_no = find_user_mob_no(info.mob_no)
-        model = TransactionModel(
-            from_id = info.from_id,
-            to_id = to_id_mob_no,
-            amount = info.amount,
-            remark = info.remark
-        )
-        return await paying(model)
-    except HTTPException as e:
-        raise e
-    except:
-        raise HTTPException(
-            status_code = 404,
-            detail = "Some Error has occured"
         )

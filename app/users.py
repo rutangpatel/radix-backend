@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
 from app.schemas import UserModel
@@ -143,6 +143,93 @@ async def deletion(user_id:str):
             status_code = 404,
             detail = "Try after sometime"
         )
+    
+# ── Set PIN ─────────────────────────────────────────────────
+@router.post("/set-pin")
+async def set_pin(user_id: str, pin: str = Form(...)):
+    try:
+        if not pin.isdigit() or len(pin) != 4:
+            raise HTTPException(
+                status_code=400,
+                detail="PIN must be exactly 4 digits"
+            )
+
+        user = user_info.find_one({"user_id": user_id})
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+
+        existing_pin = user.get("pin")
+        if existing_pin:
+            raise HTTPException(
+                status_code=409,
+                detail="PIN already set. Use /users/update-pin to change it"
+            )
+
+        hashed_pin = bcrypt_context.hash(pin)
+        user_info.update_one(
+            {"user_id": user_id},
+            {"$set": {"pin": hashed_pin}}
+        )
+        return {"status": "PIN set successfully"}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to set PIN: {str(e)}")
+
+
+# ── Update PIN ───────────────────────────────────────────────
+@router.put("/update-pin")
+async def update_pin(user_id: str, old_pin: str = Form(...), new_pin: str = Form(...)):
+    try:
+        if not new_pin.isdigit() or len(new_pin) != 4:
+            raise HTTPException(
+                status_code=400,
+                detail="New PIN must be exactly 4 digits"
+            )
+
+        user = user_info.find_one({"user_id": user_id})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        stored_pin = user.get("pin")
+        if not stored_pin:
+            raise HTTPException(
+                status_code=404,
+                detail="No PIN set. Use /users/set-pin first"
+            )
+
+        if not bcrypt_context.verify(old_pin, stored_pin):
+            raise HTTPException(
+                status_code=401,
+                detail="Old PIN is incorrect"
+            )
+
+        hashed_new_pin = bcrypt_context.hash(new_pin)
+        user_info.update_one(
+            {"user_id": user_id},
+            {"$set": {"pin": hashed_new_pin}}
+        )
+        return {"status": "PIN updated successfully"}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update PIN: {str(e)}")
+
+
+# ── Helper: verify pin (used by payment router) ──────────────
+def verify_pin(user_id: str, pin: str) -> bool:
+    user = user_info.find_one({"user_id": user_id})
+    if not user:
+        return False
+    stored_pin = user.get("pin")
+    if not stored_pin:
+        return False
+    return bcrypt_context.verify(pin, stored_pin)
     
 
 async def amount_change(user_id: str, amount:float, minus: bool):

@@ -19,7 +19,7 @@ secret_key = os.getenv("SECRET_KEY")
 algorithm = "HS256"
 
 bcrypt_context = CryptContext(schemes = ['bcrypt'], deprecated = "auto")
-oauth2_bearer = OAuth2PasswordBearer(tokenUrl = "auth/token")
+oauth2_bearer = OAuth2PasswordBearer(tokenUrl = "v1/auth/token")
 
 def create_access_token(user_id, name, expiry_delta):
     encode = {"sub": user_id, "name": name}
