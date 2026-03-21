@@ -27,6 +27,7 @@ class UserModel(BaseModel):
     name: str
     mob_no: str
     password: str = Field(max_length = 30, min_length = 8)
+    pin: str = Field(max_length = 4 , min_length = 4)
     amount: float | None = None
     time_of_creation: datetime | None = None
     user_id: str | None = None

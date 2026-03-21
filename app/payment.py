@@ -4,9 +4,8 @@ from app.schemas import TransactionModel, TransactionModelMobNo, RollBack, PinPa
 from datetime import datetime, timedelta, timezone
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
-from app.users import get_balance, amount_change, check_user, find_user_mob_no, verify_pin
+from app.users import get_balance, amount_change, check_user, find_user_mob_no, verify_pin, get_next_transaction_id
 from app.rollback import rollbackput
-import uuid
 
 router = APIRouter()
 
@@ -140,7 +139,7 @@ async def paying(info: TransactionModel):
         if to_id_exist and from_id_exist:
             
             info.time = datetime.now(timezone.utc)
-            info.transaction_id = uuid.uuid4().hex
+            info.transaction_id = get_next_transaction_id()
             balance_data = get_balance(user_id = info.from_id)
             from_balance = balance_data["amount"]      
 

@@ -52,36 +52,53 @@ async def user(user: dict = Depends(get_current_user)):
 
 @router.post("/signup")
 async def user_create(info: UserModel, name_in_id: bool = False):
-    data = user_info.find_one({"mob_no":info.mob_no})
+    data = user_info.find_one({"mob_no": info.mob_no})
     if data is not None:
         raise HTTPException(
-            status_code = 409,
-            detail = "Your mobile number is already registered with us"
+            status_code=409,
+            detail="Your mobile number is already registered with us"
         )
     else:
         try:
+            # Validate PIN is digits only
+            if not info.pin.isdigit():
+                raise HTTPException(
+                    status_code=400,
+                    detail="PIN must contain only digits"
+                )
+
             info.time_of_creation = datetime.now(timezone.utc)
 
             if name_in_id:
-                initials = info.name.lower().replace(" ","")
+                initials = info.name.lower().replace(" ", "")
                 info.user_id = initials + "@radix"
-            
             else:
                 info.user_id = info.mob_no + "@radix"
-            
+
             info.amount = secrets.randbelow(50000) + 50000
+
+            # Hash password
             hashed_password = bcrypt_context.hash(info.password)
             info.password = hashed_password
+
+            # Hash PIN
+            hashed_pin = bcrypt_context.hash(info.pin)
+            info.pin = hashed_pin
+
             user_info.insert_one(info.model_dump())
 
-            return {"status": "You are now part of Radix",
-                    "user_id": f"{info.user_id}",
-                    "amount": f"{info.amount}"}
+            return {
+                "status": "You are now part of Radix",
+                "user_id": f"{info.user_id}",
+                "amount": f"{info.amount}"
+            }
 
+        except HTTPException as he:
+            raise he
         except Exception as e:
             raise HTTPException(
                 status_code=400,
-                detail= f"Your account was not created due to {e}"
+                detail=f"Your account was not created due to {e}"
             )
 
     
@@ -143,45 +160,7 @@ async def deletion(user_id:str):
             status_code = 404,
             detail = "Try after sometime"
         )
-    
-# ── Set PIN ─────────────────────────────────────────────────
-@router.post("/set-pin")
-async def set_pin(user_id: str, pin: str = Form(...)):
-    try:
-        if not pin.isdigit() or len(pin) != 4:
-            raise HTTPException(
-                status_code=400,
-                detail="PIN must be exactly 4 digits"
-            )
 
-        user = user_info.find_one({"user_id": user_id})
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail="User not found"
-            )
-
-        existing_pin = user.get("pin")
-        if existing_pin:
-            raise HTTPException(
-                status_code=409,
-                detail="PIN already set. Use /users/update-pin to change it"
-            )
-
-        hashed_pin = bcrypt_context.hash(pin)
-        user_info.update_one(
-            {"user_id": user_id},
-            {"$set": {"pin": hashed_pin}}
-        )
-        return {"status": "PIN set successfully"}
-
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to set PIN: {str(e)}")
-
-
-# ── Update PIN ───────────────────────────────────────────────
 @router.put("/update-pin")
 async def update_pin(user_id: str, old_pin: str = Form(...), new_pin: str = Form(...)):
     try:
@@ -221,7 +200,6 @@ async def update_pin(user_id: str, old_pin: str = Form(...), new_pin: str = Form
         raise HTTPException(status_code=500, detail=f"Failed to update PIN: {str(e)}")
 
 
-# ── Helper: verify pin (used by payment router) ──────────────
 def verify_pin(user_id: str, pin: str) -> bool:
     user = user_info.find_one({"user_id": user_id})
     if not user:
@@ -273,3 +251,11 @@ def rollback_amount(user_id: str, amount:float):
         return True
     except:
         return False
+
+def get_next_transaction_id() -> str:
+    result = radix["counters"].find_one_and_update(
+        {"_id": "transaction_id"},
+        {"$inc": {"seq": 1}},        # atomically increment by 1
+        return_document=True          # return updated document
+    )
+    return str(result["seq"])         # "100000001", "100000002" etc.
