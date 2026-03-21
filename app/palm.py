@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
 import tensorflow as tf
-from PIL import Image
-import io
 
 def preprocess_image(image_bytes: bytes):
     #For Direct Image received

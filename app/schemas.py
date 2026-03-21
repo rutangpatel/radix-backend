@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import List
-from fastapi import UploadFile
 
 class TransactionModel(BaseModel):
     from_id: str
