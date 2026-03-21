@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import List
+from fastapi import UploadFile
 
 class TransactionModel(BaseModel):
     from_id: str
@@ -25,7 +27,6 @@ class Token(BaseModel):
 class UserModel(BaseModel):
     name: str
     mob_no: str
-    bank: str
     password: str = Field(max_length = 30, min_length = 8)
     amount: float | None = None
     time_of_creation: datetime | None = None
@@ -37,3 +38,17 @@ class RollBack(BaseModel):
     amount: float
     transaction_id: str
     time: datetime | None = None
+
+class PalmEmbeddingModel(BaseModel):
+    user_id: str
+    embedding: List[float]
+    enrolled_at: datetime | None = None
+
+class PalmIdentifyResponse(BaseModel):
+    matched: bool
+    user_id: str | None = None
+    confidence: float
+
+class PalmPayment(BaseModel):
+    amount: float
+    remark: str | None = None
