@@ -115,8 +115,15 @@ async def paying_pin(info: PinPayment):
         )
 
 @router.post("/payment_using_mob_no")
-async def paying_mob_no(info:TransactionModelMobNo):
+async def paying_mob_no(info: TransactionModelMobNo):
     try:
+        pin_valid = verify_pin(user_id=info.from_id, pin=info.pin)
+        if not pin_valid:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid PIN"
+            )
+
         to_id_mob_no = find_user_mob_no(info.mob_no)
         if not to_id_mob_no:                          # ← add this check
             raise HTTPException(

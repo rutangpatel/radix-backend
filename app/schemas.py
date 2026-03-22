@@ -14,6 +14,7 @@ class TransactionModelMobNo(BaseModel):
     from_id: str
     mob_no: str
     amount: float
+    pin: str = Field(min_length=4, max_length=4)
     remark: str | None = None
 class DBUserModel(BaseModel):
     user_id: str
