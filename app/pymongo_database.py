@@ -1,12 +1,13 @@
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
+import certifi
 
 load_dotenv()
 
 def get_database():
     mongo_url = os.getenv("MONGO_DB_CONNECTION")
-    client = MongoClient(mongo_url)
+    client = MongoClient(mongo_url, tlsCAFile = certifi.where())
     return client['radix']
 
 if __name__ == '__main__':
