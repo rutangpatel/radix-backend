@@ -68,6 +68,7 @@ async def history(user_id: str, start_date : str | None = None, end_date : str |
         if remark is None:
             data.append(
                 {
+                    "transaction_id": r["transaction_id"],
                     "from_id": r["from_id"],
                     "to_id": r["to_id"],
                     "amount": r["amount"],
@@ -76,6 +77,7 @@ async def history(user_id: str, start_date : str | None = None, end_date : str |
             )
         else:
             data.append({
+                "transaction_id": r["transaction_id"],
                 "from_id": r["from_id"],
                 "to_id": r["to_id"],
                 "amount": r["amount"],
