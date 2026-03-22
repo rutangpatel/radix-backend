@@ -118,6 +118,11 @@ async def paying_pin(info: PinPayment):
 async def paying_mob_no(info:TransactionModelMobNo):
     try:
         to_id_mob_no = find_user_mob_no(info.mob_no)
+        if not to_id_mob_no:                          # ← add this check
+            raise HTTPException(
+                status_code=404,
+                detail="No Radix account found for this mobile number"
+            )
         model = TransactionModel(
             from_id = info.from_id,
             to_id = to_id_mob_no,
@@ -138,7 +143,7 @@ async def paying(info: TransactionModel):
         if info.to_id == info.from_id:
             raise HTTPException(
                 status_code = 400,
-                details = "You can not send money to yourself"
+                detail = "You can not send money to yourself"
             )
         to_id_exist = check_user(user_id = info.to_id)
         from_id_exist = check_user(user_id = info.from_id)
