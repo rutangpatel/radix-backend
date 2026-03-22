@@ -116,8 +116,16 @@ async def palm_pay(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Palm payment failed: {str(e)}")
 
+@router.get("/status")
+async def palm_status(user_id: str):
+    """
+    Returns whether a user has an enrolled palm embedding.
+    Called by the frontend on SecurityView mount.
+    """
+    user_id = user_id.strip().lower()
+    existing = palm_embeddings.find_one({"user_id": user_id})
+    return {"enrolled": existing is not None}
 
-# ── Re-enroll ───────────────────────────────────────────────
 @router.put("/re-enroll")
 async def re_enroll_palm(
     user_id: str = Form(...),

@@ -133,6 +133,11 @@ async def paying_mob_no(info:TransactionModelMobNo):
     
 async def paying(info: TransactionModel):
     try:
+        if info.to_id == info.from_id:
+            raise HTTPException(
+                status_code = 400,
+                details = "You can not send money to yourself"
+            )
         to_id_exist = check_user(user_id = info.to_id)
         from_id_exist = check_user(user_id = info.from_id)
         

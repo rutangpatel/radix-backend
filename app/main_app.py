@@ -1,10 +1,19 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.payment import router as payment_router
 from app.users import router as users_router
 from app.auth import router as auth_router
 from app.palm_router import router as palm_router
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # your Vite dev server
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(payment_router, prefix = "/v1/transaction", tags = ["Payment"])
 app.include_router(users_router, prefix = "/v1/users", tags = ["Users"])
