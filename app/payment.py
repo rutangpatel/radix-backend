@@ -21,30 +21,10 @@ def home():
     return {"data":"Radix Transaction API's"}
 
 @router.get("/history")
-async def history(user_id: str, start_date : str | None = None, end_date : str | None = None):
+async def history(user_id: str):
     now = datetime.now(timezone.utc)
-    if start_date is None:
-        start_dt = datetime(now.year, now.month, 1)
-    else:
-        try:
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        except:
-            raise HTTPException(
-                status_code = 400,
-                error = "Please enter date in the valid format(yyyy-mm-dd)"
-            )
-
-    if end_date is None:
-        end_dt = now
-    else:
-        try:
-            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-        except:
-            raise HTTPException(
-                status_code = 400,
-                error = "Please enter date in the valid format(yyyy-mm-dd)"
-            )
-
+    start_dt = datetime(now.year, now.month, 1)
+    end_dt = now
     ist_offset = timedelta(hours = 5, minutes = 30)
     
     records = transactions.find(
@@ -85,11 +65,52 @@ async def history(user_id: str, start_date : str | None = None, end_date : str |
                 "remark": remark
             })
     return data
+
+@router.get("/check_activity")
+async def check_activity(user_id: str):
+    now = datetime.now(timezone.utc)
+    start_dt = datetime(now.year, now.month, 1)
+    end_dt = now
+    ist_offset = timedelta(hours = 5, minutes = 30)
+
+    records = transactions.find(
+        {
+            "$and": [
+                {"time":{"$gte": start_dt, "$lt": end_dt}},
+                {"$or": [
+                    {"from_id": user_id},
+                    {"to_id": user_id}
+                ]}
+            ]
+        }
+    ).limit(3).sort("time", -1)
+    data = []
+    for r in records:
+        remark = r.get("remark")
+        if remark is None:
+            data.append(
+                {
+                    "transaction_id": r["transaction_id"],
+                    "from_id": r["from_id"],
+                    "to_id": r["to_id"],
+                    "amount": r["amount"],
+                    "time": (r["time"] + ist_offset).strftime("%d-%m-%Y %H:%M")
+                }
+            )
+        else:
+            data.append({
+                "transaction_id": r["transaction_id"],
+                "from_id": r["from_id"],
+                "to_id": r["to_id"],
+                "amount": r["amount"],
+                "time": (r["time"] + ist_offset).strftime("%d-%m-%Y %H:%M"),
+                "remark": remark
+            })
+    return data
     
 @router.post("/payment")
 async def paying_pin(info: PinPayment):
     try:
-        # Step 1 — verify PIN before anything else
         pin_valid = verify_pin(user_id=info.from_id, pin=info.pin)
         if not pin_valid:
             raise HTTPException(
@@ -97,7 +118,6 @@ async def paying_pin(info: PinPayment):
                 detail="Invalid PIN"
             )
 
-        # Step 2 — reuse existing paying() logic
         transaction = TransactionModel(
             from_id=info.from_id,
             to_id=info.to_id,
@@ -125,7 +145,7 @@ async def paying_mob_no(info: TransactionModelMobNo):
             )
 
         to_id_mob_no = find_user_mob_no(info.mob_no)
-        if not to_id_mob_no:                          # ← add this check
+        if not to_id_mob_no:                          
             raise HTTPException(
                 status_code=404,
                 detail="No Radix account found for this mobile number"
