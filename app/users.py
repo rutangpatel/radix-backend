@@ -255,7 +255,14 @@ def rollback_amount(user_id: str, amount:float):
 def get_next_transaction_id() -> str:
     result = radix["counters"].find_one_and_update(
         {"_id": "transaction_id"},
-        {"$inc": {"seq": 1}},        # atomically increment by 1
-        return_document=True          # return updated document
+        {"$inc": {"seq": 1}},        
+        return_document=True         
     )
-    return str(result["seq"])         # "100000001", "100000002" etc.
+    return str(result["seq"])        
+
+def get_user_profie(user_id: str):
+    result = user_info.find_one({"user_id": user_id})
+    if result is None:
+        return None
+    else:
+        return result["profile_photo"]

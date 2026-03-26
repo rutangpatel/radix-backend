@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(payment_router, prefix = "/v1/transaction", tags = ["Payment"])
+app.include_router(payment_router, prefix = "/v2/transaction", tags = ["Payment"])
 app.include_router(users_router, prefix = "/v1/users", tags = ["Users"])
 app.include_router(auth_router, prefix = "/v1/auth", tags = ["Authentication"])
 app.include_router(palm_router, prefix = "/v1/palm", tags = ["Palm"])
