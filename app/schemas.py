@@ -45,18 +45,18 @@ class PalmEmbeddingModel(BaseModel):
     embedding: List[float]
     enrolled_at: datetime | None = None
 
-class PalmIdentifyResponse(BaseModel):
-    matched: bool
+class FaceIdentifyResponse(BaseModel):
     user_id: str | None = None
     confidence: float
-
-class PalmPayment(BaseModel):
-    amount: float
-    remark: str | None = None
-
+    
 class PinPayment(BaseModel):
     from_id: str
     to_id: str
     amount: float
     pin: str = Field(min_length=4, max_length=4)
     remark: str | None = None
+
+class FaceEmbeddings(BaseModel):
+    user_id: str | None = None
+    deepface_embeddings: List[float]
+    enrolled_at: datetime | None = None
