@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
 from app.schemas import UserModel
@@ -9,6 +9,7 @@ from jose import jwt, JWTError
 from datetime import datetime, timezone
 from app.profile_photo import imagekit
 import secrets
+from app.rate_limiter import limiter
 
 radix = get_database()
 user_info = radix["user_info"]
@@ -41,8 +42,9 @@ def get_balance(user_id: str):
             detail = "Their was something wrong try again later"
         )
 
+@limiter.limit("3/minute")
 @router.get("/authenticated")
-async def user(user: dict = Depends(get_current_user)):
+async def user(request: Request, user: dict = Depends(get_current_user)):
     if user is None:
         raise HTTPException(
             status_code = 401,
@@ -50,8 +52,9 @@ async def user(user: dict = Depends(get_current_user)):
         )
     return {"user":user}
 
+@limiter.limit("3/minute")
 @router.post("/signup")
-async def user_create(info: UserModel, name_in_id: bool = False):
+async def user_create(request: Request, info: UserModel, name_in_id: bool = False):
     data = user_info.find_one({"mob_no": info.mob_no})
     if data is not None:
         raise HTTPException(

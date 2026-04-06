@@ -1,11 +1,11 @@
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, HTTPException, Request
 from app.schemas import TransactionModel, TransactionModelMobNo, RollBack, PinPayment
 from datetime import datetime, timedelta, timezone
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
 from app.users import get_balance, amount_change, check_user, find_user_mob_no, verify_pin, get_next_transaction_id, get_user_profie
 from app.rollback import rollbackput
+from app.rate_limiter import limiter
 
 router = APIRouter()
 
@@ -20,8 +20,9 @@ category_index = transactions.create_indexes([index1, index2])
 def home():
     return {"data":"Radix Transaction API's"}
 
+@limiter.limit("15/minute")
 @router.get("/history")
-async def history(user_id: str):
+async def history(user_id: str, request: Request):
     now = datetime.now(timezone.utc)
     start_dt = datetime(now.year, now.month, 1)
     end_dt = now
@@ -68,8 +69,9 @@ async def history(user_id: str):
             })
     return data
 
+@limiter.limit("15/minute")
 @router.get("/check_activity")
-async def check_activity(user_id: str):
+async def check_activity(user_id: str, request: Request):
     now = datetime.now(timezone.utc)
     start_dt = datetime(now.year, now.month, 1)
     end_dt = now
@@ -111,9 +113,10 @@ async def check_activity(user_id: str):
                 "profile_photo" : get_user_profie(r["from_id"] if r["from_id"] != user_id else r["to_id"])
             })
     return data
-    
+
+@limiter.limit("3/30 seconds")
 @router.post("/payment")
-async def paying_pin(info: PinPayment):
+async def paying_pin(info: PinPayment, request: Request):
     try:
         pin_valid = verify_pin(user_id=info.from_id, pin=info.pin)
         if not pin_valid:
@@ -138,8 +141,9 @@ async def paying_pin(info: PinPayment):
             detail=f"PIN payment failed: {str(e)}"
         )
 
+@limiter.limit("3/30 seconds")
 @router.post("/payment_using_mob_no")
-async def paying_mob_no(info: TransactionModelMobNo):
+async def paying_mob_no(info: TransactionModelMobNo, request: Request):
     try:
         pin_valid = verify_pin(user_id=info.from_id, pin=info.pin)
         if not pin_valid:
