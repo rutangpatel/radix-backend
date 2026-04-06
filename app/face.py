@@ -2,7 +2,7 @@ from deepface import DeepFace
 import numpy as np
 
 def get_embeddings(image):
-    result = DeepFace.represent(image, model_name = "Facenet512", enforce_detection = "True", detector_backend = "retinaface")
+    result = DeepFace.represent(image, model_name = "Facenet512", enforce_detection = True, detector_backend = "retinaface")
     result = np.array(result[0]["embedding"])   
     return result.tolist()
 
