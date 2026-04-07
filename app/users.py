@@ -4,12 +4,10 @@ from pymongo import IndexModel, ASCENDING
 from app.schemas import UserModel
 from app.auth import get_current_user
 from passlib.context import CryptContext
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from jose import jwt, JWTError
+from app.rate_limiter import limiter
 from datetime import datetime, timezone
 from app.profile_photo import imagekit
 import secrets
-from app.rate_limiter import limiter
 
 radix = get_database()
 user_info = radix["user_info"]
@@ -24,18 +22,13 @@ bcrypt_context = CryptContext(schemes = ["bcrypt"], deprecated = "auto")
 def user():
     return {"data": "Radix User API's"}
 
+@limiter.limit("15/minute")
 @router.get("/balance")
-def get_balance(user_id: str):
+def get_balance(request : Request, user: dict = Depends(get_current_user)):
     try:
-        data = user_info.find_one({"user_id":user_id})
-        if not data:
-            raise HTTPException(
-                status_code = 404,
-                detail = "You are not registered with us"
-            )
-        current_amount = data["amount"]
-
-        return {"amount":current_amount}
+        return fetch_balance(user_id = user["user_id"])
+    except HTTPException as he:
+        raise he
     except:
         raise HTTPException(
             status_code = 404,
@@ -104,10 +97,11 @@ async def user_create(request: Request, info: UserModel, name_in_id: bool = Fals
                 detail=f"Your account was not created due to {e}"
             )
 
-    
+@limiter.limit("5/minute")  
 @router.put("/profile_photo")
-async def upload_photo(user_id:str, image : UploadFile = File(...)):
+async def upload_photo(request: Request, user : dict = Depends(get_current_user), image : UploadFile = File(...)):
         try:
+            user_id = user["user_id"]
             image_data = await image.read()
             data = user_info.find_one({"user_id":user_id})
             if data:
@@ -127,9 +121,11 @@ async def upload_photo(user_id:str, image : UploadFile = File(...)):
                 detail = f"Their was something wrong"
             )
         
+@limiter.limit("5/minute")
 @router.put("/update")
-def updation(user_id: str, to_mob_no: bool = False, to_name: bool = True):
+def updation(request: Request, user: dict = Depends(get_current_user), to_mob_no: bool = False, to_name: bool = True):
     try:
+        user_id = user["user_id"]
         data = user_info.find_one({"user_id":user_id})
         if not data:
             return {"status":"Data not found"}
@@ -153,9 +149,11 @@ def updation(user_id: str, to_mob_no: bool = False, to_name: bool = True):
             detail=f"We were not able to change your id please try later"
         )
 
+@limiter.limit("5/minute")
 @router.delete("/delete")
-async def deletion(user_id:str):
+async def deletion(request: Request, user : dict = Depends(get_current_user)):
     try:
+        user_id = user["user_id"]
         user_info.delete_one({"user_id":user_id})
         return {"status":"Your id was deleted successfully"}
     except:
@@ -164,9 +162,11 @@ async def deletion(user_id:str):
             detail = "Try after sometime"
         )
 
+@limiter.limit("5/minute")
 @router.put("/update-pin")
-async def update_pin(user_id: str, old_pin: str = Form(...), new_pin: str = Form(...)):
+async def update_pin(request: Request, user: dict = Depends(get_current_user), old_pin: str = Form(...), new_pin: str = Form(...)):
     try:
+        user_id = user["user_id"]
         if not new_pin.isdigit() or len(new_pin) != 4:
             raise HTTPException(
                 status_code=400,
@@ -269,3 +269,12 @@ def get_user_profie(user_id: str):
         return None
     else:
         return result["profile_photo"]
+
+def fetch_balance(user_id: str):
+    data = user_info.find_one({"user_id": user_id})
+    if not data:
+        raise HTTPException(
+            status_code = 404, 
+            detail = "User not registered with us"
+        )
+    return {"amount": data["amount"]}
