@@ -8,15 +8,11 @@ radix = get_database()
 rollback = radix["rollback_transaction"]
 
 def rollbackput(info: RollBack):
-    try:
-        rollback.insert_one(info.model_dump())
-        rollback_amount(user_id = info.user_id, amount = info.amount)
-        return {"status": f"We have refunded {info.amount} to {info.user_id} for {info.transaction_id}"}
-    except:
-        raise HTTPException(
-            status_code = 400,
-            detail = "Please try after sometime"
-        )
+    rollback.insert_one(info.model_dump())
+    success = rollback_amount(user_id=info.user_id, amount=info.amount)
+    if not success:
+        raise HTTPException(status_code=500, detail=f"CRITICAL: Refund failed for {info.user_id}, transaction {info.transaction_id}")
+    return {"status": f"Refunded {info.amount} to {info.user_id}"}
 
 
     

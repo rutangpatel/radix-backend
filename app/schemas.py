@@ -11,7 +11,6 @@ class TransactionModel(BaseModel):
     remark: str | None = None
 
 class TransactionModelMobNo(BaseModel):
-    from_id: str
     mob_no: str
     amount: float
     pin: str = Field(min_length=4, max_length=4)
@@ -33,6 +32,7 @@ class UserModel(BaseModel):
     time_of_creation: datetime | None = None
     user_id: str | None = None
     profile_photo : str | None = None
+    profile_photo_id: str | None = None
 
 class RollBack(BaseModel):
     user_id: str
@@ -50,7 +50,6 @@ class FaceIdentifyResponse(BaseModel):
     confidence: float
     
 class PinPayment(BaseModel):
-    from_id: str
     to_id: str
     amount: float
     pin: str = Field(min_length=4, max_length=4)

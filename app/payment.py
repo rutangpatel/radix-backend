@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from app.schemas import TransactionModel, TransactionModelMobNo, RollBack, PinPayment
 from datetime import datetime, timedelta, timezone
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
-from app.users import fetch_balance, amount_change, check_user, find_user_mob_no, verify_pin, get_next_transaction_id, get_user_profie
+from app.users import fetch_balance, amount_change, check_user, find_user_mob_no, verify_pin, get_next_transaction_id, get_user_profie, get_current_user
 from app.rollback import rollbackput
 from app.rate_limiter import limiter
 
@@ -22,7 +22,8 @@ def home():
 
 @limiter.limit("15/minute")
 @router.get("/history")
-async def history(user_id: str, request: Request):
+async def history(request : Request, user: dict = Depends(get_current_user)):
+    user_id = user["user_id"]
     now = datetime.now(timezone.utc)
     start_dt = datetime(now.year, now.month, 1)
     end_dt = now
@@ -71,7 +72,8 @@ async def history(user_id: str, request: Request):
 
 @limiter.limit("15/minute")
 @router.get("/check_activity")
-async def check_activity(user_id: str, request: Request):
+async def check_activity(request: Request, user: dict = Depends(get_current_user)):
+    user_id = user["user_id"]
     now = datetime.now(timezone.utc)
     start_dt = datetime(now.year, now.month, 1)
     end_dt = now
@@ -116,9 +118,10 @@ async def check_activity(user_id: str, request: Request):
 
 @limiter.limit("3/30 seconds")
 @router.post("/payment")
-async def paying_pin(info: PinPayment, request: Request):
+async def paying_pin(request: Request, info: PinPayment, user: dict = Depends(get_current_user)):
     try:
-        pin_valid = verify_pin(user_id=info.from_id, pin=info.pin)
+        from_id = user["user_id"]
+        pin_valid = verify_pin(user_id=from_id, pin=info.pin)
         if not pin_valid:
             raise HTTPException(
                 status_code=401,
@@ -126,7 +129,7 @@ async def paying_pin(info: PinPayment, request: Request):
             )
 
         transaction = TransactionModel(
-            from_id=info.from_id,
+            from_id=from_id,
             to_id=info.to_id,
             amount=info.amount,
             remark=info.remark
@@ -143,9 +146,10 @@ async def paying_pin(info: PinPayment, request: Request):
 
 @limiter.limit("3/30 seconds")
 @router.post("/payment_using_mob_no")
-async def paying_mob_no(info: TransactionModelMobNo, request: Request):
+async def paying_mob_no(request: Request, info: TransactionModelMobNo, user: dict = Depends(get_current_user)):
     try:
-        pin_valid = verify_pin(user_id=info.from_id, pin=info.pin)
+        from_id = user["user_id"]
+        pin_valid = verify_pin(user_id=from_id, pin=info.pin)
         if not pin_valid:
             raise HTTPException(
                 status_code=401,
@@ -159,7 +163,7 @@ async def paying_mob_no(info: TransactionModelMobNo, request: Request):
                 detail="No Radix account found for this mobile number"
             )
         model = TransactionModel(
-            from_id = info.from_id,
+            from_id = from_id,
             to_id = to_id_mob_no,
             amount = info.amount,
             remark = info.remark
@@ -176,63 +180,36 @@ async def paying_mob_no(info: TransactionModelMobNo, request: Request):
 async def paying(info: TransactionModel):
     try:
         if info.to_id == info.from_id:
-            raise HTTPException(
-                status_code = 400,
-                detail = "You can not send money to yourself"
-            )
-        to_id_exist = check_user(user_id = info.to_id)
-        from_id_exist = check_user(user_id = info.from_id)
-        
-        if to_id_exist and from_id_exist:
-            
-            info.time = datetime.now(timezone.utc)
-            info.transaction_id = get_next_transaction_id()
-            balance_data = fetch_balance(user_id = info.from_id)
-            from_balance = balance_data["amount"]      
+            raise HTTPException(status_code=400, detail="You cannot send money to yourself")
 
-            if from_balance >= info.amount:
-                check_1 = await amount_change(user_id = info.from_id, amount = info.amount, minus = True)
-                if check_1:
-                    check_2 = await amount_change(user_id = info.to_id, amount = info.amount, minus = False)  
-                    if check_2:
-                        transactions.insert_one(info.model_dump())
-                        return {"status": f"Payment Successful to {info.to_id} for {info.amount}",
-                                "reamining_balance": from_balance - info.amount,
-                                "transaction_id": info.transaction_id}
-                    else:
-                        model = RollBack(
-                            user_id = info.from_id,
-                            amount = info.amount,
-                            transaction_id = info.transaction_id,
-                            time = info.time
-                        )
-                        rollbackput(model)
-                        raise HTTPException(
-                            status_code = 500,
-                            detail = "Money was deducted but not recieved to the user"
-                        )
-                else:
-                    raise HTTPException(
-                        status_code = 500,
-                        detail = "Failed To do the transaction"
-                    )
-                
-            else:
-                raise HTTPException(
-                    status_code = 404,
-                    detail = "You do not have enough balance"
-                )
-        else:
-            raise HTTPException(
-                status_code = 404,
-                detail = "Reciever Not Found"
+        if not check_user(info.to_id) or not check_user(info.from_id):
+            raise HTTPException(status_code=404, detail="Receiver not found")
+
+        info.time = datetime.now(timezone.utc)
+        info.transaction_id = get_next_transaction_id()
+
+        check_1 = await amount_change(user_id=info.from_id, amount=info.amount, minus=True)
+        if not check_1:
+            raise HTTPException(status_code=400, detail="Insufficient balance")
+
+        check_2 = await amount_change(user_id=info.to_id, amount=info.amount, minus=False)
+        if not check_2:
+            model = RollBack(
+                user_id=info.from_id,
+                amount=info.amount,
+                transaction_id=info.transaction_id,
+                time=info.time
             )
-    
+            rollbackput(model)
+            raise HTTPException(status_code=500, detail="Money deducted but not received by user")
+
+        transactions.insert_one(info.model_dump())
+        return {
+            "status": f"Payment Successful to {info.to_id} for {info.amount}",
+            "transaction_id": info.transaction_id
+        }
+
     except HTTPException as he:
         raise he
-
     except Exception as e:
-        raise HTTPException(
-            status_code = 500,
-            detail = f"Payment failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Payment failed: {str(e)}")

@@ -8,18 +8,26 @@ from app.pymongo_database import get_database
 from app.schemas import Token, DBUserModel
 from dotenv import load_dotenv
 import os
+from pymongo import IndexModel, ASCENDING
 
 router = APIRouter()
 load_dotenv()
 
 radix = get_database()
 user_info = radix['user_info']
+blacklist = radix["token_blacklist"]
+blacklist_index1 = IndexModel([("token", ASCENDING)], unique=True)
+blacklist_index2 = IndexModel([("exp", ASCENDING)], expireAfterSeconds=0)
+blacklist.create_indexes([blacklist_index1, blacklist_index2])  
 
 secret_key = os.getenv("SECRET_KEY")
 algorithm = "HS256"
 
 bcrypt_context = CryptContext(schemes = ['bcrypt'], deprecated = "auto")
 oauth2_bearer = OAuth2PasswordBearer(tokenUrl = "v1/auth/token")
+
+def blacklist_token(token: str, exp: datetime):
+    blacklist.insert_one({"token": token, "exp": exp})
 
 def create_access_token(user_id, name, expiry_delta):
     encode = {"sub": user_id, "name": name}
@@ -38,14 +46,18 @@ def authenticate_user(username: str, password: str):
 
 async def get_current_user(token:str = Depends(oauth2_bearer)):
     try:
-        payload = jwt.decode(token, secret_key, algorithms = algorithm)
+        payload = jwt.decode(token, secret_key, algorithms = [algorithm])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(
                 status_code = 401,
                 detail = "Could not Validate User"
             )
-        return {"user_id": user_id}
+        
+        if blacklist.find_one({"token": token}):
+            raise HTTPException(status_code = 401, detail = "Token has been invalidated. Please login again")
+
+        return {"user_id": user_id, "token": token, "exp": payload.get("exp")}
     except JWTError:
         raise HTTPException(
             status_code = 401,

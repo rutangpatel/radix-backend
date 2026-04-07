@@ -2,11 +2,11 @@ from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, R
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
 from app.schemas import UserModel
-from app.auth import get_current_user
+from app.auth import get_current_user, blacklist_token
 from passlib.context import CryptContext
 from app.rate_limiter import limiter
 from datetime import datetime, timezone
-from app.profile_photo import imagekit
+from app.profile_photo import imagekit, delete
 import secrets
 
 radix = get_database()
@@ -112,7 +112,7 @@ async def upload_photo(request: Request, user : dict = Depends(get_current_user)
             )
             user_info.update_one(
                 {"user_id":data["user_id"]},
-                {"$set":{"profile_photo":response.url}}
+                {"$set":{"profile_photo":response.url, "profile_photo_id": response.file_id}}
             )
             return {"status":"Your profile photo is successfully uploaded"}
         except:
@@ -141,7 +141,8 @@ def updation(request: Request, user: dict = Depends(get_current_user), to_mob_no
             {"user_id":user_id},
             {"$set":{"user_id":new_id}}
         )
-        return {"status":f"Your id is successfully changed to {new_id}"}
+        blacklist_token(user["token"], datetime.fromtimestamp(user["exp"], tz = timezone.utc))
+        return {"status":f"Your id is successfully changed to {new_id}. Please login again"}
     
     except:
         raise HTTPException(
@@ -152,10 +153,24 @@ def updation(request: Request, user: dict = Depends(get_current_user), to_mob_no
 @limiter.limit("5/minute")
 @router.delete("/delete")
 async def deletion(request: Request, user : dict = Depends(get_current_user)):
+    from app.face_router import delete_embeddings
     try:
         user_id = user["user_id"]
+        data = user_info.find_one({"user_id": user_id})
+        if not data:
+            raise HTTPException(
+                status_code = 404,
+                detail = "User not found"
+            )
+        file_id = data.get("profile_photo_id")
+        if file_id:
+            delete(file_id)
+        delete_embeddings(user_id = user_id)
+        blacklist_token(user["token"], datetime.fromtimestamp(user["exp"], tz = timezone.utc))
         user_info.delete_one({"user_id":user_id})
-        return {"status":"Your id was deleted successfully"}
+        return {"status":"Your account was deleted successfully"}
+    except HTTPException as he:
+        raise he
     except:
         raise HTTPException(
             status_code = 404,
@@ -214,20 +229,15 @@ def verify_pin(user_id: str, pin: str) -> bool:
     
 
 async def amount_change(user_id: str, amount:float, minus: bool):
-    data = user_info.find_one({"user_id":user_id})
-    if minus:
-        remaining_balance = data["amount"] - amount
-        user_info.update_one(
-            {"user_id": user_id},
-            {"$set" : {"amount": remaining_balance}}
-        )
-    else:
-        remaining_balance = data["amount"] + amount
-        user_info.update_one(
-            {"user_id": user_id},
-            {"$set" : {"amount": remaining_balance}}
-        )
-    return True
+    delta = -amount if minus else amount
+    result = user_info.update_one(
+        {
+            "user_id": user_id,
+            "amount": {"$gte": amount} if minus else {}
+        },
+        {"$inc": {"amount": delta}}
+    )
+    return result.modified_count == 1
     
 def check_user(user_id: str):
     data = user_info.find_one({"user_id":user_id})
@@ -243,15 +253,13 @@ def find_user_mob_no(mob_no: str):
     else:
         return False
     
-def rollback_amount(user_id: str, amount:float):
+def rollback_amount(user_id: str, amount: float):
     try:
-        data = user_info.find_one({"user_id": user_id})
-        added_balance = data["amount"] + amount
-        user_info.update_one(
+        result = user_info.update_one(
             {"user_id": user_id},
-            {"$set": {"amount": added_balance}}
+            {"$inc": {"amount": amount}}
         )
-        return True
+        return result.modified_count == 1
     except:
         return False
 

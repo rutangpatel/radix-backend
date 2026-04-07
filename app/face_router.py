@@ -1,8 +1,8 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request, Depends
 from app.pymongo_database import get_database
 from app.face import get_average_embeddings, get_embeddings
 from app.schemas import FaceEmbeddings, FaceIdentifyResponse, TransactionModel
-from app.users import check_user
+from app.users import check_user, get_current_user
 from app.payment import paying
 from app.rate_limiter import limiter
 from datetime import datetime, timezone
@@ -16,9 +16,9 @@ face_embeddings = radix["face_embeddings"]
 
 @limiter.limit("5/minute")
 @router.post("/enroll")
-async def enrollment(request: Request, user_id: str, images: list[UploadFile] = File(...)):
+async def enrollment(request: Request, user: dict = Depends(get_current_user), images: list[UploadFile] = File(...)):
     try:
-        user_id = user_id.strip().lower()
+        user_id = user["user_id"]
         user = check_user(user_id)
         if not user:
             raise HTTPException(
@@ -58,8 +58,9 @@ async def enrollment(request: Request, user_id: str, images: list[UploadFile] = 
 
 @limiter.limit("10/minute")
 @router.post("/pay")
-async def face_payment(request: Request, to_id: str, amount: float, remark: str = Form(None), image: UploadFile = File(...)):
+async def face_payment(request: Request, amount: float, remark: str = Form(None), image: UploadFile = File(...),  user: dict = Depends(get_current_user)):
     try:
+        to_id = user["user_id"]
         result = await identify_image(image)
         if result["user_id"] is not None:
             from_id = result["user_id"]
@@ -86,8 +87,8 @@ async def face_payment(request: Request, to_id: str, amount: float, remark: str 
 
 @limiter.limit("20/minute")
 @router.get("/status")
-async def status(request: Request, user_id: str):
-    user_id = user_id.lower().strip()
+async def status(request: Request, user : dict = Depends(get_current_user)):
+    user_id = user["user_id"]
     existing = face_embeddings.find_one({"user_id": user_id})
     return {"enrolled": existing is not None}
 
@@ -107,11 +108,11 @@ async def indentification(request: Request,image: UploadFile = File(...)):
 
 @limiter.limit("5/minute")
 @router.put("/reenroll")
-async def reenrollment(request: Request, user_id: str = Form(...), images : list[UploadFile] = File(...)):
+async def reenrollment(request: Request, user: dict = Depends(get_current_user), images : list[UploadFile] = File(...)):
     try:
-        user_id = user_id.strip().lower()
-        user = radix["user_info"].find_one({"user_id":user_id})
-        if not user:
+        user_id = user["user_id"]
+        users = radix["user_info"].find_one({"user_id":user_id})
+        if not users:
             raise HTTPException(
                 status_code = 404,
                 detail = f"User not found"
@@ -128,7 +129,7 @@ async def reenrollment(request: Request, user_id: str = Form(...), images : list
         face_embeddings.update_one(
             {"user_id": user_id}, 
             {"$set": {
-                "deepface_embedding": average_embeddings,
+                "deepface_embeddings": average_embeddings,
                 "enrolled_at": datetime.now(timezone.utc)
             }},
             upsert = True
@@ -182,3 +183,20 @@ async def identify_image(image: UploadFile):
 
     result = search_face(query_embedding)
     return result
+
+def delete_embeddings(user_id: str):
+    try:
+        data = face_embeddings.find_one({"user_id": user_id})
+
+        if data is None:
+            return
+        else:
+            result = face_embeddings.delete_one({"user_id": user_id})
+            return result.deleted_count > 0
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code = 404,
+            detail = "Try after sometime"
+        )

@@ -2,9 +2,11 @@ from deepface import DeepFace
 import numpy as np
 
 def get_embeddings(image):
-    result = DeepFace.represent(image, model_name = "Facenet512", enforce_detection = True, detector_backend = "retinaface")
-    result = np.array(result[0]["embedding"])   
-    return result.tolist()
+    result = DeepFace.represent(image, model_name = "Facenet512", enforce_detection = True, detector_backend = "retinaface", anti_spoofing = True)
+    if result[0].get("is_real") is False:
+        raise ValueError("Liveness check failed — spoof detected") 
+    embedding = np.array(result[0]["embedding"])  
+    return embedding.tolist()
 
 def get_average_embeddings(image_list):
     embeddings = []

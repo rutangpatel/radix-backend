@@ -8,4 +8,9 @@ imagekit = ImageKit(
     private_key = os.getenv("IMAGKIT_PRIVATE_KEY")
 )
 
-url_endpoint = os.getenv("IMAGEKIT_URL")
+def delete(file_id):
+    try:
+        imagekit.files.delete(file_id)
+        return {"status": "Successfull"}
+    except:
+        return {"status": "Unsuccessfull"}
