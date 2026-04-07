@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request, Depends
 from app.pymongo_database import get_database
 from app.face import get_average_embeddings, get_embeddings
-from app.schemas import FaceEmbeddings, FaceIdentifyResponse, TransactionModel
+from app.schemas import FaceEmbeddings, FaceIdentifyResponse, TransactionModel, FacePayment
 from app.users import check_user, get_current_user
 from app.payment import paying
 from app.rate_limiter import limiter
@@ -58,7 +58,7 @@ async def enrollment(request: Request, user: dict = Depends(get_current_user), i
 
 @limiter.limit("10/minute")
 @router.post("/pay")
-async def face_payment(request: Request, amount: float, remark: str = Form(None), image: UploadFile = File(...),  user: dict = Depends(get_current_user)):
+async def face_payment(request: Request, info: FacePayment = Depends(), image: UploadFile = File(...),  user: dict = Depends(get_current_user)):
     try:
         to_id = user["user_id"]
         result = await identify_image(image)
@@ -72,8 +72,8 @@ async def face_payment(request: Request, amount: float, remark: str = Form(None)
         transaction = TransactionModel(
             from_id = from_id,
             to_id = to_id,
-            amount = amount,
-            remark = remark
+            amount = info.amount,
+            remark = info.remark
         )
         return await paying(transaction)
 

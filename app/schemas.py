@@ -40,11 +40,6 @@ class RollBack(BaseModel):
     transaction_id: str
     time: datetime | None = None
 
-class PalmEmbeddingModel(BaseModel):
-    user_id: str
-    embedding: List[float]
-    enrolled_at: datetime | None = None
-
 class FaceIdentifyResponse(BaseModel):
     user_id: str | None = None
     confidence: float
@@ -59,3 +54,7 @@ class FaceEmbeddings(BaseModel):
     user_id: str | None = None
     deepface_embeddings: List[float]
     enrolled_at: datetime | None = None
+
+class FacePayment(BaseModel):
+    amount : float
+    remark: str | None = None
