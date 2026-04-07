@@ -1,7 +1,7 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
-from app.schemas import UserModel
+from app.schemas import UserModel, ForgotPassword
 from app.auth import get_current_user, blacklist_token
 from passlib.context import CryptContext
 from app.rate_limiter import limiter
@@ -177,39 +177,60 @@ async def deletion(request: Request, user : dict = Depends(get_current_user)):
             detail = "Try after sometime"
         )
 
+@limiter.limit("3/minute")
+@router.post("/forgot-password")
+async def forgot_password(request: Request, info: ForgotPassword):
+    try:
+        if not info.new_password.isalnum():
+            raise HTTPException(status_code=400, detail="Invalid password format")
+
+        user = user_info.find_one({"user_id": info.user_id, "mob_no": info.mob_no})
+        if not user:
+            raise HTTPException(status_code=404, detail="No account found with this user_id and mobile number")
+
+        hashed_password = bcrypt_context.hash(info.new_password)
+        user_info.update_one(
+            {"user_id": info.user_id},
+            {
+                "$set": {"password": hashed_password}
+            }
+        )
+        return {"status": "Password updated successfully. Please login again."}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reset password: {str(e)}")
+
+
 @limiter.limit("5/minute")
-@router.put("/update-pin")
-async def update_pin(request: Request, user: dict = Depends(get_current_user), old_pin: str = Form(...), new_pin: str = Form(...)):
+@router.put("/forgot-pin")
+async def forgot_pin(request: Request, user: dict = Depends(get_current_user), 
+                     new_pin: str = Form(...), 
+                     old_pin: str = Form(None),      
+                     password: str = Form(None)):    
     try:
         user_id = user["user_id"]
-        if not new_pin.isdigit() or len(new_pin) != 4:
-            raise HTTPException(
-                status_code=400,
-                detail="New PIN must be exactly 4 digits"
-            )
+        
+        if not old_pin and not password:
+            raise HTTPException(status_code=400, detail="Provide either old PIN or password")
 
-        user = user_info.find_one({"user_id": user_id})
-        if not user:
+        db_user = user_info.find_one({"user_id": user_id})
+        if not db_user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        stored_pin = user.get("pin")
-        if not stored_pin:
-            raise HTTPException(
-                status_code=404,
-                detail="No PIN set. Use /users/set-pin first"
-            )
+        if old_pin:
+            if not bcrypt_context.verify(old_pin, db_user["pin"]):
+                raise HTTPException(status_code=401, detail="Old PIN is incorrect")
+        elif password:
+            if not bcrypt_context.verify(password, db_user["password"]):
+                raise HTTPException(status_code=401, detail="Incorrect password")
 
-        if not bcrypt_context.verify(old_pin, stored_pin):
-            raise HTTPException(
-                status_code=401,
-                detail="Old PIN is incorrect"
-            )
+        if not new_pin.isdigit() or len(new_pin) != 4:
+            raise HTTPException(status_code=400, detail="New PIN must be exactly 4 digits")
 
         hashed_new_pin = bcrypt_context.hash(new_pin)
-        user_info.update_one(
-            {"user_id": user_id},
-            {"$set": {"pin": hashed_new_pin}}
-        )
+        user_info.update_one({"user_id": user_id}, {"$set": {"pin": hashed_new_pin}})
         return {"status": "PIN updated successfully"}
 
     except HTTPException as he:

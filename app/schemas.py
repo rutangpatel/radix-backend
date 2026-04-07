@@ -58,3 +58,8 @@ class FaceEmbeddings(BaseModel):
 class FacePayment(BaseModel):
     amount : float
     remark: str | None = None
+
+class ForgotPassword(BaseModel):
+    user_id: str
+    mob_no: str
+    new_password: str = Field(min_length=8, max_length=30)
