@@ -251,11 +251,11 @@ def verify_pin(user_id: str, pin: str) -> bool:
 
 async def amount_change(user_id: str, amount:float, minus: bool):
     delta = -amount if minus else amount
+    query = {"user_id": user_id}
+    if minus:
+        query["amount"] = {"$gte": amount}
     result = user_info.update_one(
-        {
-            "user_id": user_id,
-            "amount": {"$gte": amount} if minus else {}
-        },
+        query,
         {"$inc": {"amount": delta}}
     )
     return result.modified_count == 1

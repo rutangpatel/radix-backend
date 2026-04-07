@@ -73,7 +73,7 @@ async def login_for_access(form_data: OAuth2PasswordRequestForm = Depends()) -> 
             status_code = 401,
             detail = "Unauthorized User"
         )
-    token = create_access_token(user["user_id"], name = user["name"].lower().replace(" ",""), expiry_delta = timedelta(hours = 12))
+    token = create_access_token(user["user_id"], name = user["name"], expiry_delta = timedelta(hours = 12))
     return {"access_token": token, "token_type": "bearer"}
 
 
