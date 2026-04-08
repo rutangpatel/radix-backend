@@ -46,7 +46,8 @@ async def user(request: Request, user: dict = Depends(get_current_user)):
 
 @limiter.limit("65/minute")
 @router.get("/photo")
-def get_user_profie(request: Request, user_id: str):
+def get_user_profie(request: Request, user: dict = Depends(get_current_user)):
+    user_id = user["user_id"]
     return get_user_profile_data(user_id)
 
 

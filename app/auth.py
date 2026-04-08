@@ -70,7 +70,7 @@ async def login_for_access(form_data: OAuth2PasswordRequestForm = Depends()) -> 
     if not user:
         raise HTTPException(
             status_code = 401,
-            detail = "Unauthorized User"
+            detail = "Unauthorized user, check your password or username. Sign Up if not already"
         )
     token = create_access_token(user["user_id"], name = user["name"], expiry_delta = timedelta(hours = 12))
     return {"access_token": token, "token_type": "bearer"}
