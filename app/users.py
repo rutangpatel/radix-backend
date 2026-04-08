@@ -45,6 +45,19 @@ async def user(request: Request, user: dict = Depends(get_current_user)):
         )
     return {"user":user}
 
+@limiter.limit("65/minute")
+@router.get("/photo")
+def get_user_profie(request: Request, user_id: str):
+    result = user_info.find_one({"user_id": user_id})
+    if result is None:
+        return None
+    else:
+        if result["profile_photo"]:
+            return result["profile_photo"]
+        else:
+            return result["name"]
+
+
 @limiter.limit("3/minute")
 @router.post("/signup")
 async def user_create(request: Request, info: UserModel, name_in_id: bool = False):
@@ -291,13 +304,6 @@ def get_next_transaction_id() -> str:
         return_document=True         
     )
     return str(result["seq"])        
-
-def get_user_profie(user_id: str):
-    result = user_info.find_one({"user_id": user_id})
-    if result is None:
-        return None
-    else:
-        return result["profile_photo"]
 
 def fetch_balance(user_id: str):
     data = user_info.find_one({"user_id": user_id})
