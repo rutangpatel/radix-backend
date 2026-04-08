@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from passlib.context import CryptContext
+import bcrypt
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
 from starlette import status
@@ -23,7 +23,6 @@ blacklist.create_indexes([blacklist_index1, blacklist_index2])
 secret_key = os.getenv("SECRET_KEY")
 algorithm = "HS256"
 
-bcrypt_context = CryptContext(schemes = ['bcrypt'], deprecated = "auto")
 oauth2_bearer = OAuth2PasswordBearer(tokenUrl = "v1/auth/token")
 
 def blacklist_token(token: str, exp: datetime):
@@ -40,7 +39,7 @@ def authenticate_user(username: str, password: str):
     user = user_info.find_one({"user_id": username})
     if not user:
         return False
-    if not bcrypt_context.verify(password, user["password"]):
+    if not bcrypt.checkpw(password.encode('utf-8'), user["password"].encode("utf-8")):
         return False
     return user
 

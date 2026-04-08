@@ -3,7 +3,7 @@ from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
 from app.schemas import UserModel, ForgotPassword
 from app.auth import get_current_user, blacklist_token
-from passlib.context import CryptContext
+import bcrypt
 from app.rate_limiter import limiter
 from datetime import datetime, timezone
 from app.profile_photo import imagekit, delete
@@ -16,7 +16,6 @@ index2 = IndexModel([("mob_no", ASCENDING)], unique = True)
 user_info.create_indexes([index1, index2])
 
 router = APIRouter()
-bcrypt_context = CryptContext(schemes = ["bcrypt"], deprecated = "auto")
 
 @router.get("/")
 def user():
@@ -80,11 +79,11 @@ async def user_create(request: Request, info: UserModel, name_in_id: bool = Fals
             info.amount = secrets.randbelow(50000) + 50000
 
             # Hash password
-            hashed_password = bcrypt_context.hash(info.password)
+            hashed_password = bcrypt.hashpw(info.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             info.password = hashed_password
 
             # Hash PIN
-            hashed_pin = bcrypt_context.hash(info.pin)
+            hashed_pin = bcrypt.hashpw(info.pin.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             info.pin = hashed_pin
 
             user_info.insert_one(info.model_dump())
@@ -194,7 +193,7 @@ async def forgot_password(request: Request, info: ForgotPassword):
         if not user:
             raise HTTPException(status_code=404, detail="No account found with this user_id and mobile number")
 
-        hashed_password = bcrypt_context.hash(info.new_password)
+        hashed_password = bcrypt.hashpw(info.new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         user_info.update_one(
             {"user_id": info.user_id},
             {
@@ -226,16 +225,16 @@ async def forgot_pin(request: Request, user: dict = Depends(get_current_user),
             raise HTTPException(status_code=404, detail="User not found")
 
         if old_pin:
-            if not bcrypt_context.verify(old_pin, db_user["pin"]):
+            if not bcrypt.checkpw(old_pin.encode('utf-8'), db_user["pin"].encode('utf-8')):
                 raise HTTPException(status_code=401, detail="Old PIN is incorrect")
         elif password:
-            if not bcrypt_context.verify(password, db_user["password"]):
+            if not bcrypt.checkpw(password.encode('utf-8'), db_user["password"].encode('utf-8')):
                 raise HTTPException(status_code=401, detail="Incorrect password")
 
         if not new_pin.isdigit() or len(new_pin) != 4:
             raise HTTPException(status_code=400, detail="New PIN must be exactly 4 digits")
 
-        hashed_new_pin = bcrypt_context.hash(new_pin)
+        hashed_new_pin = bcrypt.hashpw(new_pin.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         user_info.update_one({"user_id": user_id}, {"$set": {"pin": hashed_new_pin}})
         return {"status": "PIN updated successfully"}
 
@@ -252,7 +251,7 @@ def verify_pin(user_id: str, pin: str) -> bool:
     stored_pin = user.get("pin")
     if not stored_pin:
         return False
-    return bcrypt_context.verify(pin, stored_pin)
+    return bcrypt.checkpw(pin.encode('utf-8'), stored_pin.encode('utf-8'))
     
 
 async def amount_change(user_id: str, amount:float, minus: bool):
