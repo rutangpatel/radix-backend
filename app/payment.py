@@ -3,7 +3,7 @@ from app.schemas import TransactionModel, TransactionModelMobNo, RollBack, PinPa
 from datetime import datetime, timedelta, timezone
 from app.pymongo_database import get_database
 from pymongo import IndexModel, ASCENDING
-from app.users import fetch_balance, amount_change, check_user, find_user_mob_no, verify_pin, get_next_transaction_id, get_user_profie, get_current_user
+from app.users import fetch_balance, amount_change, check_user, find_user_mob_no, verify_pin, get_next_transaction_id, get_user_profile_data, get_current_user
 from app.rollback import rollbackput
 from app.rate_limiter import limiter
 
@@ -55,7 +55,7 @@ async def history(request : Request, user: dict = Depends(get_current_user)):
                     "to_id": r["to_id"],
                     "amount": r["amount"],
                     "time": (r["time"] + ist_offset).strftime("%d-%m-%Y %H:%M"),
-                    "profile_photo" : get_user_profie(r["from_id"] if r["from_id"] != user_id else r["to_id"])
+                    "profile_photo" : get_user_profile_data(r["from_id"] if r["from_id"] != user_id else r["to_id"])
                 }
             )
         else:
@@ -66,7 +66,7 @@ async def history(request : Request, user: dict = Depends(get_current_user)):
                 "amount": r["amount"],
                 "time": (r["time"] + ist_offset).strftime("%d-%m-%Y %H:%M"),
                 "remark": remark,
-                "profile_photo" : get_user_profie(r["from_id"] if r["from_id"] != user_id else r["to_id"])
+                "profile_photo" : get_user_profile_data(r["from_id"] if r["from_id"] != user_id else r["to_id"])
             })
     return data
 
@@ -101,7 +101,7 @@ async def check_activity(request: Request, user: dict = Depends(get_current_user
                     "to_id": r["to_id"],
                     "amount": r["amount"],
                     "time": (r["time"] + ist_offset).strftime("%d-%m-%Y %H:%M"),
-                    "profile_photo" : get_user_profie(r["from_id"] if r["from_id"] != user_id else r["to_id"])
+                    "profile_photo" : get_user_profile_data(r["from_id"] if r["from_id"] != user_id else r["to_id"])
                 }
             )
         else:
@@ -112,7 +112,7 @@ async def check_activity(request: Request, user: dict = Depends(get_current_user
                 "amount": r["amount"],
                 "time": (r["time"] + ist_offset).strftime("%d-%m-%Y %H:%M"),
                 "remark": remark,
-                "profile_photo" : get_user_profie(r["from_id"] if r["from_id"] != user_id else r["to_id"])
+                "profile_photo" : get_user_profile_data(r["from_id"] if r["from_id"] != user_id else r["to_id"])
             })
     return data
 

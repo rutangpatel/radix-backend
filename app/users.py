@@ -48,14 +48,7 @@ async def user(request: Request, user: dict = Depends(get_current_user)):
 @limiter.limit("65/minute")
 @router.get("/photo")
 def get_user_profie(request: Request, user_id: str):
-    result = user_info.find_one({"user_id": user_id})
-    if result is None:
-        return None
-    else:
-        if result["profile_photo"]:
-            return result["profile_photo"]
-        else:
-            return result["name"]
+    return get_user_profile_data(user_id)
 
 
 @limiter.limit("3/minute")
@@ -313,3 +306,13 @@ def fetch_balance(user_id: str):
             detail = "User not registered with us"
         )
     return {"amount": data["amount"]}
+
+def get_user_profile_data(user_id: str):
+    result = user_info.find_one({"user_id": user_id})
+    if result is None:
+        return None
+    else:
+        if result["profile_photo"]:
+            return result["profile_photo"]
+        else:
+            return result["name"]
